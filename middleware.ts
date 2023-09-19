@@ -1,5 +1,6 @@
 import { ExpandedRequest, RequestFunction, IEndpointOptions } from './requestTypes';
 import { notFound, notAuthorized } from './responses';
+import jwt from 'jsonwebtoken';
 
 const endpoints: any[][] = [];
 
@@ -9,11 +10,13 @@ const endpoints: any[][] = [];
  * @param req The expanded request to map which will also be passed to the matched endpoint.
  * @returns 404 if no matching endpoint is registered, or the response from the endpoint.
  */
-export const handleRequest: RequestFunction = (req: ExpandedRequest) => {
-    console.log(`Handling request: Path → "${req.path}"; Method → "${req.method}"`);
+export const handleRequest: RequestFunction = async (req: ExpandedRequest) => {
+    const path = req.url.pathname.slice(1);
+
+    console.log(`Handling request: Path → "${path}"; Method → "${req.method}"`);
 
     const endpoint = endpoints.find(ep =>
-        req.path.match(ep[0].pathExp) &&
+        path.match(ep[0].pathExp) &&
         ep[0].methods.includes(req.method)
     );
     if (!endpoint || endpoint.length !== 2 || typeof endpoint[1] !== 'function') {
@@ -21,7 +24,7 @@ export const handleRequest: RequestFunction = (req: ExpandedRequest) => {
     }
 
     const endpointParts = endpoint[0].path.split(/[\\\/]/gi);
-    const pathParts = req.path.split(/[\\\/]/gi);
+    const pathParts = path.split(/[\\\/]/gi);
 
     const params: any = {};
     for (let i = 0; i < endpointParts.length; i++) {
@@ -33,7 +36,7 @@ export const handleRequest: RequestFunction = (req: ExpandedRequest) => {
 
     console.log(`Request params: ${JSON.stringify(params)}`);
 
-    return endpoint[1](new ExpandedRequest(req.getRequest(), params));
+    return await endpoint[1](new ExpandedRequest(req.getRequest(), params));
 };
 
 /**
@@ -102,10 +105,29 @@ export const registerPutEndpoint = (path: string, handler: RequestFunction) =>
  * @param next Handler for the request if authenticated.
  * @returns 401 if not authorized, or the response from the handler.
  */
-export const requireAuthentication = (next: RequestFunction): RequestFunction => (request: ExpandedRequest) => {
-    if (!request.headers.has('Authorization')) {
+export const requireAuthentication = (next: RequestFunction): RequestFunction => async (req: ExpandedRequest) => {
+    const authToken = req.getAuthToken();
+    if (!authToken) {
         return notAuthorized();
     }
 
-    return next(request);
+    const publicKey = await Bun.file(Bun.env.LF_PATH_TO_JWT_PUB_KEY as string).text();
+    let decoded: any;
+    try {
+        decoded = jwt.verify(authToken, publicKey, { algorithms: ['RS256'] });
+    } catch (err) {
+
+
+        console.log('err:', err);
+
+
+        // TODO: Log the error.
+        return notAuthorized();
+    }
+
+
+    console.log('decoded:', decoded);
+
+
+    return await next(req);
 };
