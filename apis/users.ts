@@ -21,16 +21,7 @@ registerPostEndpoint('api/v1.0/users/auth', async (req: ExpandedRequest): Promis
     //          403. https://bun.sh/guides/util/hash-a-password
 
 
-    console.log('body:', body);
-    console.log('Bun.env.LF_PATH_TO_JWT_SIGN_KEY:', Bun.env.LF_PATH_TO_JWT_SIGN_KEY);
-
-
-    const privateKey = await Bun.file(Bun.env.LF_PATH_TO_JWT_SIGN_KEY as string).text();
-    const token = jwt.sign(body, privateKey, { expiresIn: '1h' });
-
-
-    console.log('token:', token);
-
+    const token = jwt.sign(body, Bun.env.LF_JWT_SIGNING_KEY as string, { expiresIn: '1h' });
 
     return new Response(JSON.stringify({
         ...body,

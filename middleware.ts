@@ -111,23 +111,13 @@ export const requireAuthentication = (next: RequestFunction): RequestFunction =>
         return notAuthorized();
     }
 
-    const publicKey = await Bun.file(Bun.env.LF_PATH_TO_JWT_PUB_KEY as string).text();
     let decoded: any;
     try {
-        decoded = jwt.verify(authToken, publicKey, { algorithms: ['RS256'] });
+        decoded = jwt.verify(authToken, Bun.env.LF_JWT_SIGNING_KEY as string);
     } catch (err) {
-
-
-        console.log('err:', err);
-
-
         // TODO: Log the error.
         return notAuthorized();
     }
-
-
-    console.log('decoded:', decoded);
-
 
     return await next(req);
 };
