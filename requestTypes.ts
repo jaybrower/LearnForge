@@ -1,11 +1,7 @@
-export type RequestFunction = (req: ExpandedRequest) => Promise<Response>;
+import { IAuthUser } from './responseModels';
+import jwt from 'jsonwebtoken';
 
-export interface IRequestUser {
-    email: string,
-    firstName: string,
-    id: number,
-    lastName: string,
-}
+export type RequestFunction = (req: ExpandedRequest) => Promise<Response>;
 
 export interface IEndpointOptions {
     methods: string[],
@@ -34,14 +30,24 @@ export class ExpandedRequest {
         return this._req.headers;
     }
 
-    public get user(): IRequestUser {
-        // TODO: Pull this information from the token in the `Authorization` header.
-        return {
-            email: 'jay.brower.229@gmail.com',
-            firstName: 'Jay',
-            id: 1,
-            lastName: 'Brower',
-        } as IRequestUser;
+    private _user: IAuthUser | null = null;
+    public get user(): IAuthUser | null {
+        if (this._user) {
+            return this._user;
+        }
+
+        const authToken = this.getAuthToken();
+        if (!authToken) {
+            return null;
+        }
+
+        try {
+            this._user = jwt.verify(authToken, Bun.env.LF_JWT_SIGNING_KEY as string) as IAuthUser;
+        } catch (err) {
+            return null;
+        }
+
+        return this._user;
     }
 
     public getParam(name: string, defaultValue: any = null) {

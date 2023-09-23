@@ -1,6 +1,6 @@
 import { ExpandedRequest, RequestFunction, IEndpointOptions } from './requestTypes';
+import { IAuthUser } from './responseModels';
 import { notFound, notAuthorized } from './responses';
-import jwt from 'jsonwebtoken';
 
 const endpoints: any[][] = [];
 
@@ -12,9 +12,6 @@ const endpoints: any[][] = [];
  */
 export const handleRequest: RequestFunction = async (req: ExpandedRequest) => {
     const path = req.url.pathname.slice(1);
-
-    console.log(`Handling request: Path → "${path}"; Method → "${req.method}"`);
-
     const endpoint = endpoints.find(ep =>
         path.match(ep[0].pathExp) &&
         ep[0].methods.includes(req.method)
@@ -33,8 +30,6 @@ export const handleRequest: RequestFunction = async (req: ExpandedRequest) => {
             params[endpointPart.slice(1)] = pathParts[i];
         }
     }
-
-    console.log(`Request params: ${JSON.stringify(params)}`);
 
     return await endpoint[1](new ExpandedRequest(req.getRequest(), params));
 };
@@ -57,7 +52,7 @@ const generatePathRegExp = (path: string) => new RegExp(
     '^(' + path
         .replace(/[\/\\]/gi, '[\\\/]')
         .replace(/\./gi, '\\.')
-        .replace(/\$userId/gi, '(\\bme|\\d+)')
+        .replace(/\$userId/gi, '(\\bme|[a-z0-9]{24})')
         .replace(/\$[a-z0-9]+/gi, '[a-z0-9]+') + ')$',
     'i'
 );
@@ -106,16 +101,7 @@ export const registerPutEndpoint = (path: string, handler: RequestFunction) =>
  * @returns 401 if not authorized, or the response from the handler.
  */
 export const requireAuthentication = (next: RequestFunction): RequestFunction => async (req: ExpandedRequest) => {
-    const authToken = req.getAuthToken();
-    if (!authToken) {
-        return notAuthorized();
-    }
-
-    let decoded: any;
-    try {
-        decoded = jwt.verify(authToken, Bun.env.LF_JWT_SIGNING_KEY as string);
-    } catch (err) {
-        // TODO: Log the error.
+    if (!req.user) {
         return notAuthorized();
     }
 
