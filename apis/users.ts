@@ -3,8 +3,9 @@ import { ExpandedRequest } from '../requestTypes';
 import { notFound, invalidRequestBody, okJson, serverError, conflict } from '../responses';
 import { IInvalidRequestBody, IAuthUser } from '../responseModels';
 import jwt from 'jsonwebtoken';
-import { MongoClient, ObjectId } from 'mongodb';
+import { ObjectId } from 'mongodb';
 import { IUser } from '../entities';
+import { connectAsync } from '../mongodb';
 
 registerGetEndpoint('api/v1.0/users/$userId', requireAuthentication(async (req: ExpandedRequest): Promise<Response> => {
     let userId = req.getParam('userId');
@@ -14,10 +15,7 @@ registerGetEndpoint('api/v1.0/users/$userId', requireAuthentication(async (req: 
 
     // TODO: A permission check to make sure you can view the user.
 
-    const client = new MongoClient(Bun.env.LF_MONGODB_URL as string);
-    await client.connect();
-
-    const db = client.db(Bun.env.LF_MONGODB_DATABASE as string);
+    const db = await connectAsync();
     const collection = db.collection<IUser>('users');
 
     const user = await collection.findOne({ _id: new ObjectId(userId) });
@@ -64,6 +62,19 @@ registerPostEndpoint('api/v1.0/users/register', async (req: ExpandedRequest): Pr
         } as IInvalidRequestBody);
     }
 
+    const repeatingCharacterExpression = /^(?:(.)(?!\1{2}))+$/;
+    if (body.password.length < 8 || !repeatingCharacterExpression.test(body.password)) {
+        return invalidRequestBody({
+            properties: [
+                {
+                    name: 'password',
+                    message: 'Make sure your password is at least 8 characters long and doesn\'t use repeating characters.',
+                    isRequired: true,
+                },
+            ],
+        });
+    }
+
     if (!body.firstName) {
         return invalidRequestBody({
             properties: [
@@ -88,12 +99,7 @@ registerPostEndpoint('api/v1.0/users/register', async (req: ExpandedRequest): Pr
         } as IInvalidRequestBody);
     }
 
-    // TODO: Check to make sure the given password is secure enough.
-
-    const client = new MongoClient(Bun.env.LF_MONGODB_URL as string);
-    await client.connect();
-
-    const db = client.db(Bun.env.LF_MONGODB_DATABASE as string);
+    const db = await connectAsync();
     const collection = db.collection<IUser>('users');
 
     const existingUser = await collection.findOne({ email: body.email, isDeleted: false });
@@ -125,10 +131,7 @@ registerPostEndpoint('api/v1.0/users/register', async (req: ExpandedRequest): Pr
 registerPostEndpoint('api/v1.0/users/auth', async (req: ExpandedRequest): Promise<Response> => {
     const body = await req.getJsonBodyAsync();
 
-    const client = new MongoClient(Bun.env.LF_MONGODB_URL as string);
-    await client.connect();
-
-    const db = client.db(Bun.env.LF_MONGODB_DATABASE as string);
+    const db = await connectAsync();
     const collection = db.collection<IUser>('users');
 
     const user = await collection.findOne({ email: body.email, isDeleted: false });

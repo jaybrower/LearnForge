@@ -1,5 +1,4 @@
 import { ExpandedRequest, RequestFunction, IEndpointOptions } from './requestTypes';
-import { IAuthUser } from './responseModels';
 import { notFound, notAuthorized } from './responses';
 
 const endpoints: any[][] = [];
